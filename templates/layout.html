@@ -1,12 +1,12 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <!-- Required meta tags -->
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="">
     <meta name="author" content="Mark Otto, Jacob Thornton, and Bootstrap contributors">
     <meta name="generator" content="Hugo 0.80.0">
-    <title>Board Mini Project</title>
     <link rel="canonical" href="https://getbootstrap.com/docs/5.0/examples/album/">
     <!-- Bootstrap core CSS -->
     <link href="static/bootstrap.min.css" rel="stylesheet">
@@ -25,8 +25,18 @@
         }
       }
     </style>
+    <!-- Flask Message 출력 -->
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+      <script>
+          alert("{{messages[-1]}}")
+      </script>
+      {% endif %}
+    {% endwith %}
+    <title>Board Mini Project</title>
   </head>
 <body>
+<!-- Navibar -->
 <header>
   <div class="collapse bg-dark" id="navbarHeader">
     <div class="container">
@@ -50,51 +60,29 @@
     <div class="container">
       <a href="#" class="navbar-brand d-flex align-items-center">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" aria-hidden="true" class="me-2" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-        <strong>Album</strong>
+        <strong>Blog-Project</strong>
       </a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarHeader" aria-controls="navbarHeader" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-      </button>
+      {% if session['id'] %}
+      <b><font color='white'>{{ session['name'] }} </b>님 환영합니다! </font>
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('logout') }}">로그아웃</a>&nbsp;&nbsp;&nbsp;
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('member', id = session['id']) }}">회원정보수정</a>
+      {% if session['auth'] == 1 %}
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin', id = session['id']) }}">관리자</a>
+      {% endif %} 
+      {% else %}
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('login') }}">로그인</a>&nbsp;&nbsp;&nbsp;
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('member') }}">회원가입</a>
+      {% endif %}
     </div>
   </div>
 </header>
-<main>
-  <section class="py-5 text-center container">
-    <div class="row py-lg-5">
-      <div class="col-lg-6 col-md-8 mx-auto">
-        <h1 class="fw-light">Album Project</h1>
-        <p class="lead text-muted">by Python in Flask</p>
-        <p>
-          <a href="{{ url_for('home') }}" class="btn btn-primary my-2">돌아가기</a>
-        </p>
-      </div>
-    </div>
-  </section>
-  <!-- content start -->
-  <section class="form-signin">
-    <div class="album py-5 bg-light">
-    <div class="container">
-    <form class="form" action="/upload_post" method="post" enctype = "multipart/form-data">
-      <div class="form-group">
-        <label for="Input" class="form-label">Photo Upload</label>
-        <!--input class="form-control" type="file" id="formFile" accept="image/*" name="imgfile"-->
-        <input type="file" name="imgfile">
-        *기존파일: {{img_src}}  <a href="{{ url_for('del_image', id=id, img_src=img_src, comment=comment) }}">삭제</a>
-      </div>
-      <br/>
-      <div class="form-group">
-        <label for="name">Post Comments</label>
-        <textarea class="form-control" id="exampleFormControlTextarea1" rows="5" name="comment">{{-comment-}}</textarea>
-      </div>
-      <br/>
-      <input type="hidden" class="form-control" name="id"  value="{{id}}"/>
-      <button type="submit" class="btn btn-primary">Post</button>
-    </form>
-  </div>
-  </div>
-</section>
-  <!-- content end -->
-</main>
+<!-- 기본 템플릿 안에 삽입될 내용 Start -->
+{% block content %}
+{% endblock %}
+<!-- 기본 템플릿 안에 삽입될 내용 End -->
+<!doctype html>
+<html lang="en">
+<body>
 <footer class="text-muted py-5">
   <div class="container">
     <p class="float-end mb-1">
@@ -104,7 +92,9 @@
     <p class="mb-0">New to Bootstrap? <a href="/">Visit the homepage</a> or read our <a href="../getting-started/introduction/">getting started guide</a>.</p>
   </div>
 </footer>
-
-<script src="static/bootstrap.bundle.min.js"></script>
+{% block footer %}
+{% endblock %}  
 </body>
 </html>
+
+

@@ -3,197 +3,205 @@
 from flask import Flask, session, flash, render_template, url_for, request, redirect
 import mysql.connector
 from datetime import date
-from class_sql import Database  # class_sql.py
+from models import Database  # models.py
+import sys, os
 
 # Flask 인스턴스 생성
 app = Flask(__name__) 
-app.secret_key = b'1234asdfasfd'  #message Flash, Session 기능을 사용하기 위해서는 SECRET_KEY를 반드시 설정
+#message Flash, Session 기능을 사용하기 위해서는 SECRET_KEY를 반드시 설정 
+app.secret_key = b'1234asdfasfd'    # secret_key는 서버 app의 config에 저장
 
-@app.route('/')          # Home 
+# Request Root 
+@app.route('/')          
 def home(): 
-  if session['id']:
+  if "id" in session:
     db = Database()
-    query = "SELECT id, img_src, comment, id_user From post WHERE id_user=%s"
+    query = "SELECT id, img_src, comment From post WHERE id_user=%s"
     sql_rows = db.executeAll(query, (session['id'],))
-    return render_template('index.html', id=session['id'], data=sql_rows)
+    return render_template('index.html', data=sql_rows)
   else:
     return render_template("index.html")
 
+# Request Home
 @app.route("/home")
 def index():
-  if session['id']:
+  if "id" in session:
     db = Database()
-    query = "SELECT id, img_src, comment, id_user From post WHERE id_user=%s"
+    query = "SELECT id, img_src, comment From post WHERE id_user=%s"
     sql_rows = db.executeAll(query, (session['id'],))
-    return render_template('index.html', id=session['id'], data=sql_rows)
+    return render_template('index.html', data=sql_rows)
   else:
     return render_template("index.html")
 
-
-@app.route('/post')      # Post Page
+# Request Post Link
+@app.route('/post')      
 def post(): 
-  return render_template('post.html')
+  if "id" in session:
+    return render_template('post.html', id=request.args.get('id'), img_src=request.args.get('img_src'), comment=request.args.get('comment'))
+  else:
+    flash("로그인 후 이용가능합니다")
+    return render_template('login.html')
 
-# 포스트 & 파일 업로드 처리
+# Upload Post & Image File
 @app.route('/upload_post', methods = ['GET', 'POST'])
 def upload_post():
-  if request.method == 'POST':
+  if request.method == 'POST': # POST 방식 (캡슐 및 큰데이터 전송시 사용)
     comment = request.form['comment']
     f = request.files['imgfile']
-    img_src = f.filename
-    f.save('./static/img/' + f.filename) #저장할 경로 + 파일명
-    #f.save('./uploads/' + secure_filename(f.filename))
-    # db에 저장
-    db = Database()
-    db.insert_post(img_src, comment, session['id'])
-    query = "SELECT id, img_src, comment, id_user From post WHERE id_user=%s"
-    sql_rows = db.executeAll(query, (session['id'],))
-    db.conn.disconnect()
-    flash('포스트등록되었습니다')
-    return render_template('index.html', id=session['id'], data=sql_rows)
-	#else:
-		#return render_template('page_not_found.html')
+    img_src ="./static/img/"+f.filename
+    
+    print("f.filename >>>>" + str(f.filename), file=sys.stderr) 
+    
 
-# 로그인 화면
+    if f.filename == "":  # 새로 업로드할 파일이 선택되지 않으면
+      flash('no selected')
+    else:
+      if os.path.exists(img_src): # 기존파일이 있는 경우 삭제
+        os.remove(img_src)  # 파일삭제
+        f.save('./static/img/' + f.filename)   # 파일저장 ==> flask 파일route방식 static 사용
+        #f.save('./static/img/' + secure_filename(img_src)))  # 암호화
+
+    db = Database()
+    if request.form['id']:  # 수정
+      query = "UPDATE post SET img_src=%s, comment=%s WHERE id=%s"
+      db.execute_db(query, [f.filename, comment, request.form['id']])
+    else: #등록
+      query = "INSERT INTO post (img_src, comment, id_user) VALUES(%s, %s, %s)"
+      db.execute_db(query, [f.filename, comment, session['id']])
+    db.conn.close()
+    flash('포스트등록되었습니다')
+    return redirect(url_for('home'))
+
+# Request login Link
 @app.route('/login')
 def login():
   return render_template('login.html')
 
-# 로그인 체크 처리
-@app.route('/check_login', methods=['POST'])  # 메소드로 POST 사용
+# Login submit 
+@app.route('/check_login', methods=['POST']) 
 def check_login():
-  if request.method == 'POST':
+  if request.method == 'POST':  
     member_id = request.form['id']
-    member_pw = request.form['pw']
-
+    member_pw = request.form["pw"]
     # 입력유무 체크
-    if len(member_id) ==  0 or len(member_pw) == 0:
-      error_msg = u'아이디와 비밀번호를 다시 입력해주세요!'
-      return error_msg
-    
-    # db 인스턴스 생성 :  pymysql > Database() Class
+    if member_id == "" or member_pw == "":
+      flash("[빈값입력오류] \\n입력이 잘못되었습니다. 다시 로그인하세요")
+      return render_template("login.html")
+    # login checking 
     db = Database()
-    query = "SELECT id, pw, name FROM user WHERE id = %s and pw = %s"
-    # method in class_sql.py - executeAll(query, args) 
-    rows= db.executeAll(query, (member_id, member_pw))
-    for cols in rows:
-      member_id = cols[0]
-      member_name = cols[2]
+    query = "SELECT id, pw, name, auth FROM user WHERE id = %s and pw = %s"
+    rows = db.executeAll(query, (member_id, member_pw))
+    for (id,pw,name,auth) in rows:
+      member_id = id
+      member_name = name
+      member_auth = auth
 
-    if len(rows) ==  0:
+    if len(rows) == 0:
+      db.conn.close()
       flash('아이디와 비밀번호가 틀렸습니다!')
       return render_template("login.html")
     else:
-      query = "SELECT id, img_src, comment, id_user From post WHERE id_user=%s"
-      sql_rows = db.executeAll(query, (member_id,))
-      session['id'] = member_id       # session에 저장
+      # log info in session 
+      session['id'] = member_id       
       session['name'] = member_name
-      return render_template('index.html', id=member_id, data=sql_rows)
-    db.conn.disconnect()
-    
+      session['auth'] = member_auth   # admin session  (admin == 1)
+      db.conn.close()
+      return redirect(url_for('home'))
 
-@app.route('/logout')      # 로그아웃기능
+# Logout 
+@app.route('/logout')      
 def logout(): 
-  session.pop('id', None)   # Session id값=빈값 넣어주면 됨
+  session.pop('id', None)    # Session id 메모리주소값 = 빈값으로 대체
+  session.pop('name', None) 
+  session.pop('auth', None) 
   flash('로그아웃되었습니다')
-  return render_template('index.html')
-
+  return redirect(url_for('home'))
     
-# 회원가입 및 수정 페이지 렌더링
-# ****** 디버깅체크사항 - id값 확인해보기, 메소드 처리 확인
+# 회원가입 및 수정 page Request
 @app.route('/member', methods=['POST', 'GET'])
 def member():
-  return_id = request.args.get("id")
-  if return_id:   # 수정ID가 있으면 수정페이지로 이동
-    db = Database() # db 인스턴스 생성
+  if 'id' in session:   
+    db = Database() 
     query = "SELECT * FROM user WHERE id = %s"
-    rows = db.executeAll(query, (return_id,))
-    db.conn.disconnect()
-    return render_template('up_member.html', rows=rows)
-  else: # 없으면 등록페이지로 이동
-    return render_template('member.html')
+    rows = db.executeAll(query, (session['id'],))
+    db.conn.close()
+    return render_template('up_member.html', rows=rows) # 수정페이지 이동
+  else: 
+    return render_template('member.html') # 등록페이지 이동
 
-# 회원가입 및 수정 처리
+# Update member_info 
 @app.route('/update_member', methods=['POST', 'GET'])
 def update_member():
   if request.method == 'POST':
-    member_id = request.form['id']
-    member_pw = request.form['pw']
-    member_name = request.form['name']
-    member_email = request.form['email']
     # member_date = date.today()  # 오늘날짜 in <from datetime import date>
-    # print(f"member_id:{member_id}")
     db = Database()
-    if request.form['status'] != "":  # 수정
-      db.update_member(member_id, member_pw, member_name, member_email)
-      query = "SELECT id, img_src, comment, id_user From post WHERE id_user=%s"
-      sql_rows = db.executeAll(query, (member_id,))
-      flash('회원 수정이 완료되었습니다.')
-      return render_template('index.html', id=member_id, data=sql_rows)
-    else: # 신규
-      row_count = db.search_duplicate(member_id) # id로 조회
-      if row_count >= 1: # DB에 같은 값이 존재할경우
-        flash('중복된 아이디가 존재합니다')
-        return render_template("member.html")
-      else:
-        db.insert_member(member_id, member_pw, member_name, member_email)
-        flash('회원등록을 완료했습니다')
-        return render_template("index.html")
-    db.conn.disconnect()
+    query = "UPDATE user SET pw = %s, name=%s, email=%s WHERE id=%s"
+    db.execute_db(query, [request.form['pw'], request.form['name'], request.form['email'], request.form['id']])
+    db.conn.close()
+    # print(f"query>>> {query}")
+    flash('회원 수정이 완료되었습니다.')
+    return redirect(url_for('home'))
 
-# 회원삭제
-@app.route("/del_member")
+# Registry new member
+@app.route('/new_member', methods=['POST', 'GET'])
+def new_member():
+  if request.method == 'POST':
+    db = Database()
+    # return value >>  중복된 ID값 Query 
+    row_count = db.search_duplicate(request.form['id']) 
+    if row_count >= 1: # DB에 같은 값이 존재할경우
+      flash('중복된 아이디가 존재합니다')
+      db.conn.close()
+      return redirect(url_for('member'))
+    else:
+      query = "INSERT INTO user (id, pw, name, email) VALUES (%s, %s, %s, %s)"
+      db.execute_db(query, [request.form['id'], request.form['pw'], request.form['name'], request.form['email']])
+      db.conn.close()
+      flash('회원등록을 완료했습니다')
+      return redirect(url_for('home'))
+
+# delete member
+@app.route("/del_member", methods=['POST', 'GET'])
 def del_member():
-  '''
-  name:member_delete
-  args:id
-  '''
-  member_id = request.args.get("id")
-  db = Database()
-  db.delete_member(member_id)
-  flash('회원탈퇴를 완료했습니다')
-  session.pop('id', None)   
-  return render_template('index.html')
+  if request.method == "POST":
+    users_id = request.form.getlist("userid")  # 선택된 userid값들을 배열로 가져오기
+    db = Database()
+    query = "DELETE FROM user WHERE id=%s"
+    db.delete_member(query, (users_id))
+    db.conn.close()
+    flash('회원삭제를 완료했습니다')
+    return redirect(url_for('admin'))
 
-@app.route("/member_list")
-def member_list():
-  '''
-  name:member_list
-  args:id
-  '''
-  member_id = request.args.get("id")
-  db = Database()
-  query = "SELECT * FROM user where id=%s"
-  rows = db.executeAll(query, (member_id,))
-  return render_template('mem_list.html', name=session['name'], rows=rows)
+# Delete Uploaded image file
+@app.route("/del_image", methods=['POST', 'GET'])
+def del_image():
+  post_id = request.args.get('id')
+  filename = request.args.get('img_src')
+  comment = request.args.get('comment')
+  if post_id:
+    img_src ="./static/img/"+filename
+    if os.path.exists(img_src):
+      os.remove(img_src)
+    else:
+      flash("The file does not exist")
+    db = Database()
+    query = "UPDATE post SET img_src='' WHERE id = %s"
+    db.execute_db(query, (post_id,))
+    db.conn.close()
+    return redirect(url_for('post', id=post_id, comment=comment))
 
-# 비번링크
-@app.route("/find_password")
-def find_password():
-  return render_template('find_password.html')
-
-# 비번조회
-@app.route("/find_member")
-def find_member():
-  
-  member_id = request.args.get("id")
-  member_name = request.args.get("name")
-  
+# admin page request
+@app.route('/admin')
+def admin():
   db = Database() 
-  query = "SELECT * FROM user WHERE id=%s and name=%s"
-  rows= db.executeAll(query, (member_id,member_name))
-  db.conn.disconnect()
-  if rows:
-    for cols in rows:
-      id = cols[0]
-      pwd = cols[1]
-    
-    return render_template('find_password.html', id=id, pw=pwd)
-  else:
-    flash('정보가 일치하지 않습니다 다시 조회하세요')
-    return render_template('find_password.html')
+  query = "SELECT id, name, email FROM user"
+  rows= db.executeAll(query)
+  db.conn.close()
+  return render_template('admin.html', rows=rows)
+
 
 if __name__=='__main__':
 # 개발용 웹서버 실행(디버깅모드)
   app.run(host='127.0.0.1', port=5000, debug=True)  
+
 

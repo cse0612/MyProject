@@ -1,0 +1,57 @@
+{% extends "layout.html" %}
+{% block content %}
+<main>
+  <section class="py-5 text-center container">
+    <div class="row py-lg-5">
+      <div class="col-lg-6 col-md-8 mx-auto">
+        <h1 class="fw-light">Album Project</h1>
+        <p class="lead text-muted">by Python in Flask</p>
+        <p>
+          <a href="{{ url_for('home') }}" class="btn btn-primary my-2">돌아가기</a>
+        </p>
+      </div>
+    </div>
+  </section>
+  <!-- content start -->
+  <section class="form-signin">
+    <main class="form-signin">
+      <div class="container">
+        <h1>관리자 페이지</h1>
+        <br/>
+        <form class="form" action="/del_member" method="post">
+          <table class="table">
+            <thead>
+              <tr>
+                <th scope="col">NO</th>
+                <th scope="col">이름</th>
+                <th scope="col">아이디</th>
+                <th scope="col">이메일</th>
+                <th scope="col">삭제</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for (id, name, email) in rows %}
+              <tr>
+                <th scope="row">{{loop.index}}</th>
+                <td>{{name}}</td>
+                <td>{{id}}</td>
+                <td>{{email}}</td>
+                <td><input type="checkbox" name="userid" value="{{id}}"></td>
+              </tr>
+              {% endfor %}
+              <tr>
+                <td colspan="4"></td>
+                <td><button type="submit" class="btn btn-primary">회원삭제</button></td>
+            </tr>
+            </tbody>
+            
+          </table>
+        </form>
+        <br/>
+      </div>
+    </main>
+</section>
+  <!-- content end -->
+{% endblock %}
+</body>
+</html>
