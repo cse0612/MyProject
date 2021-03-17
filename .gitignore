@@ -1,0 +1,6 @@
+# .pytest.cache 무시
+.pytest.cache/
+# __pycache__ 무시
+__pycache__/
+# static/img/ 무시
+static/img/
