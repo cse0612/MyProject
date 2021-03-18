@@ -6,13 +6,18 @@ from datetime import date
 from models import Database  # models.py
 import sys, os
 
+
+
 # Flask 인스턴스 생성
 app = Flask(__name__) 
 #message Flash, Session 기능을 사용하기 위해서는 SECRET_KEY를 반드시 설정 
 app.secret_key = b'1234asdfasfd'    # secret_key는 서버 app의 config에 저장
 
+
 # Request Root 
 @app.route('/')          
+# Request Home
+@app.route("/home")
 def home(): 
   if "id" in session:
     db = Database()
@@ -22,16 +27,14 @@ def home():
   else:
     return render_template("index.html")
 
-# Request Home
-@app.route("/home")
-def index():
-  if "id" in session:
-    db = Database()
-    query = "SELECT id, img_src, comment From post WHERE id_user=%s"
-    sql_rows = db.executeAll(query, (session['id'],))
-    return render_template('index.html', data=sql_rows)
-  else:
-    return render_template("index.html")
+# def index():
+#   if "id" in session:
+#     db = Database()
+#     query = "SELECT id, img_src, comment From post WHERE id_user=%s"
+#     sql_rows = db.executeAll(query, (session['id'],))
+#     return render_template('index.html', data=sql_rows)
+#   else:
+#     return render_template("index.html")
 
 # Request Post Link
 @app.route('/post')      
@@ -49,27 +52,30 @@ def upload_post():
     comment = request.form['comment']
     f = request.files['imgfile']
     img_src ="./static/img/"+f.filename
+    print("f.filename >>>>" + f.filename, file=sys.stderr) 
     
-    print("f.filename >>>>" + str(f.filename), file=sys.stderr) 
-    
-
-    if f.filename == "":  # 새로 업로드할 파일이 선택되지 않으면
-      flash('no selected')
-    else:
-      if os.path.exists(img_src): # 기존파일이 있는 경우 삭제
-        os.remove(img_src)  # 파일삭제
-        f.save('./static/img/' + f.filename)   # 파일저장 ==> flask 파일route방식 static 사용
-        #f.save('./static/img/' + secure_filename(img_src)))  # 암호화
-
+    # File Upload 
+    if f.filename:  # 새 업로드 파일이 있다면
+      if os.path.exists(img_src): # 기존파일체크후
+        os.remove(img_src)  # 기존파일삭제
+      f.save('./static/img/' + f.filename)   # 파일저장 ==> flask 파일route방식 static 사용
+      #f.save('./static/img/' + secure_filename(img_src)))  # 암호화
+    else:  # 업로드파일 없을경우
+      if request.form['old_img']:
+        f.filename = request.form['old_img']  # 기존 이미지파일명 사용
+      else:
+        flash("업로드할 이미지파일을 다시 선택하세요")
+        return redirect(url_for('home'))
+    # DB Update
     db = Database()
-    if request.form['id']:  # 수정
+    if request.form['id']:  # update 
       query = "UPDATE post SET img_src=%s, comment=%s WHERE id=%s"
       db.execute_db(query, [f.filename, comment, request.form['id']])
-    else: #등록
+    else: # new registry
       query = "INSERT INTO post (img_src, comment, id_user) VALUES(%s, %s, %s)"
       db.execute_db(query, [f.filename, comment, session['id']])
     db.conn.close()
-    flash('포스트등록되었습니다')
+    flash('포스트 등록되었습니다')
     return redirect(url_for('home'))
 
 # Request login Link
@@ -91,7 +97,7 @@ def check_login():
     db = Database()
     query = "SELECT id, pw, name, auth FROM user WHERE id = %s and pw = %s"
     rows = db.executeAll(query, (member_id, member_pw))
-    for (id,pw,name,auth) in rows:
+    for (id, pw, name, auth) in rows:
       member_id = id
       member_name = name
       member_auth = auth
@@ -117,7 +123,7 @@ def logout():
   flash('로그아웃되었습니다')
   return redirect(url_for('home'))
     
-# 회원가입 및 수정 page Request
+# Join & Update Member page Request
 @app.route('/member', methods=['POST', 'GET'])
 def member():
   if 'id' in session:   
@@ -160,7 +166,7 @@ def new_member():
       flash('회원등록을 완료했습니다')
       return redirect(url_for('home'))
 
-# delete member
+# Delete member
 @app.route("/del_member", methods=['POST', 'GET'])
 def del_member():
   if request.method == "POST":
@@ -190,18 +196,31 @@ def del_image():
     db.conn.close()
     return redirect(url_for('post', id=post_id, comment=comment))
 
-# admin page request
+# Admin page request
 @app.route('/admin')
 def admin():
   db = Database() 
-  query = "SELECT id, name, email FROM user"
-  rows= db.executeAll(query)
+  name = request.args.get('name')
+  if name:
+    query = "SELECT id, name, email FROM user WHERE name = %s"
+    rows = db.executeAll(query, (name,))
+  else:
+    query = "SELECT id, name, email FROM user"
+    rows = db.executeAll(query)
   db.conn.close()
   return render_template('admin.html', rows=rows)
+
+# Search request
+@app.route('/search', methods=['GET'])
+def search():
+  name = request.args.get('name')
+  if name:
+    return redirect(url_for('admin', name=name))
+  else:
+    flash("검색할 이름을 입력해주세요")
+    return redirect(url_for('admin'))
 
 
 if __name__=='__main__':
 # 개발용 웹서버 실행(디버깅모드)
-  app.run(host='127.0.0.1', port=5000, debug=True)  
-
-
+  app.run(host='127.0.0.1', port=5000, debug=True) 

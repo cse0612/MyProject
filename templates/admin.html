@@ -18,6 +18,17 @@
       <div class="container">
         <h1>관리자 페이지</h1>
         <br/>
+        <form name="search" action="/search" method="get">
+        <table>
+          <tr>
+            <td>이름:</td>
+            <td><input type="text" name="name" size="10"></td>
+            <td><button type="submit" class="btn btn-primary">검색</button></td>
+            <td><a href="{{ url_for('admin') }}" class="btn btn-primary my-2">전체보기</a></td>
+          </tr>
+        </table>
+      </form>
+      
         <form class="form" action="/del_member" method="post">
           <table class="table">
             <thead>
